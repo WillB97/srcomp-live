@@ -1,0 +1,26 @@
+{
+    "devices": {
+        // The IP addresses and ports of the devices that will be controlled
+        "lighting": "192.168.0.2:8000",
+        "sound": "192.168.0.3:4000"
+    },
+    "actions": [
+        // These actions will be executed at the specified time within a match
+        {
+            "time": -10,
+            "device": "lighting",
+            "message": "/set_color",
+            "args": ["#FF0000"],
+            "description": "Set the color of the lighting to red"
+        }
+    ],
+    "abort_actions": [
+        // These actions will be executed when a match unexpectedly ends
+        {
+            "device": "lighting",
+            "message": "/set_color",
+            "args": ["#FFFFFF"],
+            "description": "Set the color of the lighting to white"
+        }
+    ]
+}
