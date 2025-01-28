@@ -1,4 +1,4 @@
-"""OSC controller for the auto_match module."""
+"""OSC controller for the srcomp-live module."""
 from __future__ import annotations
 
 from pythonosc.udp_client import SimpleUDPClient

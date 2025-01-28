@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Main module for the auto_match script."""
+"""Main module for the srcomp-live script."""
 from __future__ import annotations
 
 import argparse
@@ -93,7 +93,7 @@ def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
 
 
 def main() -> None:
-    """Main function for the auto_match script."""
+    """Main function for the srcomp-live script."""
     args = parse_args()
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
 

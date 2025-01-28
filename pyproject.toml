@@ -1,6 +1,6 @@
 [project]
-name = "auto_match"
-description = "An iterposer between the SRComp REST API and OSC controlled devices."
+name = "srcomp-live"
+description = "An interposer between the SRComp REST API and OSC controlled devices."
 authors = [{name = "Will Barber"}]
 
 dynamic = ["version"]
@@ -20,7 +20,7 @@ dev = [
 ]
 
 [project.scripts]
-auto_match = "auto_match.main:main"
+srcomp-live = "srcomp.live.main:main"
 
 [tool.setuptools.packages]
 find = {}
@@ -30,7 +30,7 @@ requires = ["setuptools>=60", "wheel", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
-version_file = "auto_match/_version.py"
+version_file = "srcomp/live/_version.py"
 
 
 # ### Linting Rules ###
@@ -85,7 +85,7 @@ check_untyped_defs = true
 
 # ### Tasks ###
 [tool.poe.env]
-PYFOLDERS = "auto_match"
+PYFOLDERS = "srcomp/live"
 
 [tool.poe.tasks.lint]
 help = "Run ruff against the project to check for linting errors."
