@@ -1,6 +1,8 @@
 [project]
 name = "srcomp-live"
 description = "An interposer between the SRComp REST API and OSC controlled devices."
+readme = "README.md"
+license = {file = "LICENSE"}
 authors = [{name = "Will Barber"}]
 
 dynamic = ["version"]
@@ -21,6 +23,9 @@ dev = [
 
 [project.scripts]
 srcomp-live = "srcomp.live.main:main"
+
+[project.urls]
+Repository = "https://github.com/WillB97/srcomp-live"
 
 [tool.setuptools.packages]
 find = {}
