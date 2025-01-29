@@ -86,10 +86,11 @@ def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
         assert match_num is not None
 
         # Handle multiple actions occurring at the same time
-        for next_action in actions[next_action:]:
-            if next_action.time != action.time:
+        active_time = action.time
+        for action in actions[next_action:]:
+            if action.time != active_time:
                 break
-            osc_client.send_message(next_action.message, match_num)
+            osc_client.send_message(action.message, match_num)
 
 
 def main() -> None:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Any, NamedTuple, Union
 
 
@@ -58,7 +59,8 @@ class OSCMessage(NamedTuple):
     args: list[OSC_TYPES] | OSC_TYPES
 
 
-class Action(NamedTuple):
+@dataclass
+class Action:
     """
     An action to be performed at a specific game time.
 
@@ -78,8 +80,7 @@ class Action(NamedTuple):
             return self.time < value
         elif isinstance(value, Action):
             return self.time < value.time
-        else:
-            return super().__lt__(value)  # type: ignore[operator]
+        return NotImplemented
 
 
 def load_actions(config: dict[str, Any], abort_actions: bool = False) -> list[Action]:
