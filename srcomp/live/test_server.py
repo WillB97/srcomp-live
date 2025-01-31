@@ -4,16 +4,17 @@ from __future__ import annotations
 import argparse
 import json
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from math import floor
+from time import time
 from typing import Any, NamedTuple
 
 
 class ServerConf(NamedTuple):
     """Global configuration of the server."""
 
-    start_time: datetime = datetime.now(timezone.utc)
+    start_time: float = time()
     start_num: int = 0
     end_num: int | None = None
 
@@ -30,20 +31,20 @@ BASE_TEMPLATE = {
 }
 
 
-def get_match(curr_time: datetime) -> tuple[datetime, int] | None:
+def get_match(curr_time: float) -> tuple[float, int] | None:
     """Calculate match number and start time for the given time."""
     elapsed = curr_time - _CONFIG.start_time
-    if elapsed.total_seconds() < 0:
+    if elapsed < 0:
         return None
 
     slot_length = sum(MATCH_CONFIG.values())
-    match_num = floor(elapsed.total_seconds() / slot_length) + _CONFIG.start_num
+    match_num = floor(elapsed / slot_length) + _CONFIG.start_num
 
     if _CONFIG.end_num and match_num > _CONFIG.end_num:
         return None
 
     match_start = match_num * slot_length + MATCH_CONFIG["pre"]
-    match_time = _CONFIG.start_time + timedelta(seconds=match_start)
+    match_time = _CONFIG.start_time + match_start
 
     return (match_time, match_num)
 
@@ -64,7 +65,7 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         payload: dict[str, Any] = deepcopy(BASE_TEMPLATE)
-        match_data = get_match(datetime.now(timezone.utc))
+        match_data = get_match(time())
         if match_data is None:
             # No match ongoing
             payload["time"] = datetime.now(timezone.utc).isoformat()
@@ -74,13 +75,14 @@ class ServerHandler(BaseHTTPRequestHandler):
         match_time, match_num = match_data
         payload["matches"].append({
             "times": {
-                "game": {"start": match_time.isoformat()}
+                "game": {
+                    "start": datetime.fromtimestamp(match_time, tz=timezone.utc).isoformat()
+                }
             },
             "num": match_num
         })
 
-        now = datetime.now(timezone.utc)
-        payload["_debug"] = {"game_time": (now - match_time).total_seconds()}
+        payload["_debug"] = {"game_time": time() - match_time}
         payload["_debug"]["slot_time"] = payload["_debug"]["game_time"] + MATCH_CONFIG["pre"]
         if payload["_debug"]["game_time"] < 0:
             payload["_debug"]["match_phase"] = "pre"
@@ -88,7 +90,7 @@ class ServerHandler(BaseHTTPRequestHandler):
             payload["_debug"]["match_phase"] = "match"
         else:
             payload["_debug"]["match_phase"] = "post"
-        payload["time"] = now.isoformat()
+        payload["time"] = datetime.now(timezone.utc).isoformat()
         self.wfile.write(json.dumps(payload).encode())
 
 
@@ -99,7 +101,7 @@ def run(args: argparse.Namespace) -> None:
     _CONFIG = ServerConf(
         start_num=args.start_match,
         end_num=args.end_match,
-        start_time=datetime.now(timezone.utc) + timedelta(seconds=args.start_delay),
+        start_time=time() + args.start_delay,
     )
 
     httpd = HTTPServer(server_address, ServerHandler)
