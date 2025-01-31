@@ -7,6 +7,7 @@ import logging
 from bisect import bisect_left
 from datetime import datetime
 from time import sleep
+from typing import NamedTuple
 
 import requests
 
@@ -14,6 +15,17 @@ from .osc import OSCClient
 from .utils import Action, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
+
+
+class RunnerConf(NamedTuple):
+    """Active config for the runner."""
+
+    api_base: str
+    osc_client: OSCClient
+    actions: list[Action]
+    abort_actions: list[Action]
+    sleep_increment: float = 2
+    lock_in_time: float = 10
 
 
 def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
@@ -50,30 +62,28 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     return game_time, match_num
 
 
-def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
+def run(config: RunnerConf) -> None:
     """Run cues for each match."""
     # TODO: Implement error handling
     while True:
-        # TODO: Implement abort actions
-        # TODO: extract magic numbers to arguments
-        game_time, match_num = get_game_time(api_base)
+        game_time, match_num = get_game_time(config.api_base)
 
         if game_time is None:
             # No match is currently running
-            sleep(2)
+            sleep(config.sleep_increment)
             continue
 
-        next_action = bisect_left(actions, game_time)
-        if next_action > len(actions):
+        next_action = bisect_left(config.actions, game_time)
+        if next_action > len(config.actions):
             # All actions have been performed
-            sleep(2)
+            sleep(config.sleep_increment)
             continue
 
-        action = actions[next_action]
+        action = config.actions[next_action]
         remaining_time = action.time - game_time
 
-        if remaining_time > 10:
-            sleep(2)
+        if remaining_time > config.lock_in_time:
+            sleep(config.sleep_increment)
             continue
 
         LOGGER.info(
@@ -87,10 +97,10 @@ def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
 
         # Handle multiple actions occurring at the same time
         active_time = action.time
-        for action in actions[next_action:]:
+        for action in config.actions[next_action:]:
             if action.time != active_time:
                 break
-            osc_client.send_message(action.message, match_num)
+            config.osc_client.send_message(action.message, match_num)
 
 
 def main() -> None:
@@ -109,7 +119,14 @@ def main() -> None:
     validate_actions(osc_clients, actions)
     validate_actions(osc_clients, abort_actions)
 
-    run(args.api_base, actions, osc_client)
+    runner_config = RunnerConf(
+        args.api_base,
+        osc_client,
+        actions,
+        abort_actions,
+    )
+
+    run(runner_config)
 
 
 def parse_args() -> argparse.Namespace:
