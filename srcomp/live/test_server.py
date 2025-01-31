@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from math import floor
 from time import time
 from typing import Any, NamedTuple
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ServerConf(NamedTuple):
@@ -52,6 +55,10 @@ def get_match(curr_time: float) -> tuple[float, int] | None:
 class ServerHandler(BaseHTTPRequestHandler):
     """Handler for HTTP requests."""
 
+    def log_message(self, format: str, *args: Any) -> None:
+        """Inhibit internal logging."""
+        pass
+
     def do_HEAD(self) -> None:
         """Generate response for HEAD request."""
         self.send_response(200)
@@ -70,6 +77,7 @@ class ServerHandler(BaseHTTPRequestHandler):
             # No match ongoing
             payload["time"] = datetime.now(timezone.utc).isoformat()
             self.wfile.write(json.dumps(payload).encode())
+            LOGGER.info("No match currently running")
             return
 
         match_time, match_num = match_data
@@ -92,6 +100,7 @@ class ServerHandler(BaseHTTPRequestHandler):
             payload["_debug"]["match_phase"] = "post"
         payload["time"] = datetime.now(timezone.utc).isoformat()
         self.wfile.write(json.dumps(payload).encode())
+        LOGGER.info(f"Match {match_num}, match time: {payload['_debug']['game_time']:.3f}")
 
 
 def run(args: argparse.Namespace) -> None:
@@ -103,11 +112,19 @@ def run(args: argparse.Namespace) -> None:
         end_num=args.end_match,
         start_time=time() + args.start_delay,
     )
+    first_match = datetime.fromtimestamp(
+        _CONFIG.start_time + MATCH_CONFIG["pre"],
+        timezone.utc
+    )
+    LOGGER.info(f"First match starts at {first_match}")
 
     httpd = HTTPServer(server_address, ServerHandler)
 
-    print(f"Starting httpd on port {args.port}...")
-    httpd.serve_forever()
+    LOGGER.info(f"Starting httpd on port {args.port}...")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        LOGGER.info("Exiting")
 
 
 def parse_args() -> argparse.Namespace:
@@ -125,5 +142,11 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def init_logging() -> None:
+    """Setup default logging."""
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
+
+
 if __name__ == "__main__":
+    init_logging()
     run(parse_args())
