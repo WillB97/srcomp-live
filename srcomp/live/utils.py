@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Union
+
+LOGGER = logging.getLogger(__name__)
 
 
 class JSONWithCommentsDecoder(json.JSONDecoder):
@@ -81,6 +84,54 @@ class Action:
         elif isinstance(value, Action):
             return self.time < value.time
         return NotImplemented
+
+
+@dataclass
+class MatchVerifier:
+    """Collection of tools to verify that matches are advancing as expected."""
+
+    final_action_time: float
+
+    in_match: bool = False
+    # These values are only valid while in_match is true
+    current_match: int = 0
+    last_time: float = 0.0
+
+    def validate_timing(self, game_time: float | None, match_num: int | None) -> bool:
+        """Validate the timing of the match."""
+        result = True
+        if game_time is None or match_num is None:
+            # Not in a match
+            if self.in_match:
+                # The match has unexpectedly ended
+                LOGGER.warning("Match finished unexpectedly.")
+                result = False
+            self.in_match = False
+            return result
+
+        if game_time > self.final_action_time:
+            self.in_match = False
+            return True
+
+        if not self.in_match:
+            # Just entered a match
+            self.in_match = True
+            self.current_match = match_num
+            self.last_time = game_time
+            return True
+
+        if self.current_match != match_num:
+            # We've changed match without completing the last one
+            LOGGER.warning("Match number changed mid-match")
+            result = False
+            self.in_match = False
+        elif game_time < self.last_time:
+            # We've reset within the same match
+            LOGGER.warning("Match time decreased changed mid-match")
+            result = False
+            self.in_match = False
+
+        return result
 
 
 def load_actions(config: dict[str, Any], abort_actions: bool = False) -> list[Action]:

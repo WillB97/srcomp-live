@@ -12,7 +12,7 @@ from typing import NamedTuple
 import requests
 
 from .osc import OSCClient
-from .utils import Action, load_actions, load_config, validate_actions
+from .utils import Action, MatchVerifier, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
 
@@ -62,11 +62,23 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     return game_time, match_num
 
 
+def run_abort(actions: list[Action], osc_client: OSCClient) -> None:
+    """Run the actions that are needed to exit a match early."""
+    LOGGER.warning("[UNEXPECTED TIMING] Running abort actions. A delay may have been added.")
+    for action in actions:
+        osc_client.send_message(action.message, 0)
+
+
 def run(config: RunnerConf) -> None:
     """Run cues for each match."""
+    final_action_time = config.actions[-1].time
+    match_verifier = MatchVerifier(final_action_time)
     # TODO: Implement error handling
     while True:
         game_time, match_num = get_game_time(config.api_base)
+
+        if not match_verifier.validate_timing(game_time, match_num):
+            run_abort(config.abort_actions, config.osc_client)
 
         if game_time is None:
             # No match is currently running
