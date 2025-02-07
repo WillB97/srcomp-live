@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 from bisect import bisect_left
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep
 from typing import NamedTuple
 
@@ -50,7 +50,7 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     ).total_seconds()
 
     clock_diff = (
-        datetime.now() - datetime.fromisoformat(current_time)
+        datetime.now(tz=timezone.utc) - datetime.fromisoformat(current_time)
     ).total_seconds() * 1000
 
     LOGGER.debug(
@@ -86,7 +86,7 @@ def run(config: RunnerConf) -> None:
             continue
 
         next_action = bisect_left(config.actions, game_time)
-        if next_action > len(config.actions):
+        if next_action >= len(config.actions):
             # All actions have been performed
             sleep(config.sleep_increment)
             continue
@@ -99,8 +99,8 @@ def run(config: RunnerConf) -> None:
             continue
 
         LOGGER.info(
-            "Performing action at %.3f (in %.2s secs): %s",
-            game_time,
+            "Scheduling action for %.1f (in %.3f secs): %s",
+            action.time,
             remaining_time,
             action.description
         )
@@ -112,13 +112,17 @@ def run(config: RunnerConf) -> None:
         for action in config.actions[next_action:]:
             if action.time != active_time:
                 break
+            LOGGER.info("Performing action at %.1f: %s", action.time, action.description)
             config.osc_client.send_message(action.message, match_num)
 
 
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
-    logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
+    logging.basicConfig(
+        format="[%(asctime)s] %(levelname)s: %(message)s",
+        level=(logging.DEBUG if args.debug else logging.INFO)
+    )
 
     config = load_config(args.config)
 
@@ -137,8 +141,10 @@ def main() -> None:
         actions,
         abort_actions,
     )
-
-    run(runner_config)
+    try:
+        run(runner_config)
+    except KeyboardInterrupt:
+        LOGGER.info("Exiting")
 
 
 def parse_args() -> argparse.Namespace:
