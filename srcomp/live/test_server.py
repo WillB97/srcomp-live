@@ -24,6 +24,7 @@ class ServerConf(NamedTuple):
 
 
 _CONFIG = ServerConf()
+# TODO allow this to be overriden from the config
 MATCH_CONFIG = {
     "pre": 60,
     "match": 150,
