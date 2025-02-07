@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 from bisect import bisect_left
-from datetime import datetime, timezone
+from datetime import datetime
 from time import sleep
 from typing import NamedTuple
 
@@ -36,23 +36,43 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     None is returned if a match is not currently running.
     Game time is returned in seconds relative to the start of the match.
     """
-    r = requests.get(api_base + '/current')
+    try:
+        r = requests.get(api_base + '/current', timeout=2)
+        r.raise_for_status()
+    except requests.exceptions.Timeout:
+        raise ValueError("API request timed out")
+    except requests.exceptions.HTTPError as e:
+        raise ValueError(f"API request failed: {e}")
+    except requests.exceptions.RequestException:
+        raise ValueError("Failed to connect to API")
 
     try:
         data = r.json()
+    except requests.exceptions.JSONDecodeError:
+        raise ValueError(f"Failed to decode JSON: {r.text!r}")
+
+    try:
         start_time = data['matches'][0]['times']['game']['start']
         current_time = data['time']
         match_num = data['matches'][0]['num']
     except (ValueError, IndexError, KeyError):
+        LOGGER.debug("Not in a match")
         return None, None
 
-    game_time = (
-        datetime.fromisoformat(current_time) - datetime.fromisoformat(start_time)
-    ).total_seconds()
+    try:
+        curr_time = datetime.fromisoformat(current_time)
+    except (ValueError, TypeError):
+        raise ValueError(f"Failed to decode timestamp: {current_time}")
 
-    clock_diff = (
-        datetime.now(tz=timezone.utc) - datetime.fromisoformat(current_time)
-    ).total_seconds() * 1000
+    now = datetime.now(tz=curr_time.tzinfo)
+
+    try:
+        match_time = datetime.fromisoformat(start_time)
+    except (ValueError, TypeError):
+        raise ValueError(f"Failed to decode timestamp: {start_time}")
+
+    game_time = (curr_time - match_time).total_seconds()
+    clock_diff = (now - curr_time).total_seconds() * 1000
 
     LOGGER.debug(
         "Received game time %.3f for match %i, clock diff: %.2f ms",
@@ -75,9 +95,12 @@ def run(config: RunnerConf) -> None:
     """Run cues for each match."""
     final_action_time = config.actions[-1].time
     match_verifier = MatchVerifier(final_action_time)
-    # TODO: Implement error handling
     while True:
-        game_time, match_num = get_game_time(config.api_base)
+        try:
+            game_time, match_num = get_game_time(config.api_base)
+        except ValueError as e:
+            LOGGER.warning(e)
+            game_time, match_num = None, None
 
         if not match_verifier.validate_timing(game_time, match_num):
             run_abort(config.abort_actions, config.osc_client)
@@ -139,7 +162,7 @@ def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
     logging.basicConfig(
-        format="[%(asctime)s] %(levelname)s: %(message)s",
+        format="[%(asctime)s] %(name)s %(levelname)s: %(message)s",
         level=(logging.DEBUG if args.debug else logging.INFO)
     )
 
