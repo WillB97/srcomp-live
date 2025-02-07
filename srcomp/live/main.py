@@ -136,7 +136,7 @@ def main() -> None:
     validate_actions(osc_clients, abort_actions)
 
     runner_config = RunnerConf(
-        args.api_base,
+        config['api_url'],
         osc_client,
         actions,
         abort_actions,
@@ -151,13 +151,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Auto-match script")
     parser.add_argument(
-        "--api-base",
-        default="http://compbox.srobo/comp-api",
-        help="Base URL for the competition API",
-    )
-    parser.add_argument(
-        "--config",
-        default="config.json",
+        "config",
         help="Path to the configuration file",
     )
     parser.add_argument(

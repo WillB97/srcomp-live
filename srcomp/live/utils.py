@@ -38,6 +38,7 @@ def load_config(filename: str) -> dict[str, Any]:
         config: dict = json.load(f, cls=JSONWithCommentsDecoder)
 
     # Ensure top-level keys are present
+    assert 'api_url' in config, "'api_url' must be specified in the config file"
     config.setdefault('devices', [])
     config.setdefault('actions', [])
     config.setdefault('abort_actions', [])
