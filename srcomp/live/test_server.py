@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import threading
 from copy import deepcopy
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -103,6 +104,26 @@ class ServerHandler(BaseHTTPRequestHandler):
         LOGGER.info(f"Match {match_num}, match time: {payload['_debug']['game_time']:.3f}")
 
 
+def run_server(
+    port: int = 8008,
+    start_match: int = 0,
+    end_match: int | None = None,
+    start_delay: float = 0,
+) -> None:
+    """Wrapper for run()."""
+    thread = threading.Thread(
+        target=run,
+        args=[argparse.Namespace(
+            port=port,
+            start_match=start_match,
+            end_match=end_match,
+            start_delay=start_delay,
+        )],
+        daemon=True
+    )
+    thread.start()
+
+
 def run(args: argparse.Namespace) -> None:
     """Run the test server."""
     global _CONFIG
@@ -122,6 +143,7 @@ def run(args: argparse.Namespace) -> None:
 
     LOGGER.info(f"Starting httpd on port {args.port}...")
     try:
+        # TODO simulate matches being cancelled
         httpd.serve_forever()
     except KeyboardInterrupt:
         LOGGER.info("Exiting")

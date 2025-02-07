@@ -12,6 +12,7 @@ from typing import NamedTuple
 import requests
 
 from .osc import OSCClient
+from .test_server import run_server
 from .utils import Action, MatchVerifier, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
@@ -116,6 +117,18 @@ def run(config: RunnerConf) -> None:
             config.osc_client.send_message(action.message, match_num)
 
 
+def test_match(config: RunnerConf) -> None:
+    # start test server in background thread
+    run_server()
+
+    test_config = config._replace(api_base="http://127.0.0.1:8008/")
+
+    try:
+        run(test_config)
+    except KeyboardInterrupt:
+        LOGGER.info("Exiting")
+
+
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
@@ -141,10 +154,14 @@ def main() -> None:
         actions,
         abort_actions,
     )
-    try:
-        run(runner_config)
-    except KeyboardInterrupt:
-        LOGGER.info("Exiting")
+
+    if args.test_mode:
+        test_match(runner_config)
+    else:
+        try:
+            run(runner_config)
+        except KeyboardInterrupt:
+            LOGGER.info("Exiting")
 
 
 def parse_args() -> argparse.Namespace:
@@ -157,7 +174,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug logging"
     )
-    # TODO implement test mode and test match mode
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="Don't connect to REST API. Simulate running a set of matches right now"
+    )
 
     return parser.parse_args()
 
