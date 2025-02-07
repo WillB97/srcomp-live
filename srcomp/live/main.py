@@ -66,7 +66,8 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
 def run_abort(actions: list[Action], osc_client: OSCClient) -> None:
     """Run the actions that are needed to exit a match early."""
     LOGGER.warning("[UNEXPECTED TIMING] Running abort actions. A delay may have been added.")
-    for action in actions:
+    for index, action in enumerate(actions):
+        LOGGER.info("Performing action %d: %s", index, action.description)
         osc_client.send_message(action.message, 0)
 
 
@@ -129,6 +130,11 @@ def test_match(config: RunnerConf) -> None:
         LOGGER.info("Exiting")
 
 
+def test_abort(config: RunnerConf) -> None:
+    """Run all actions listed under the "abort_actions" key of the config and exit."""
+    run_abort(config.abort_actions, config.osc_client)
+
+
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
@@ -155,7 +161,9 @@ def main() -> None:
         abort_actions,
     )
 
-    if args.test_mode:
+    if args.test_abort:
+        test_abort(runner_config)
+    elif args.test_mode:
         test_match(runner_config)
     else:
         try:
@@ -178,6 +186,11 @@ def parse_args() -> argparse.Namespace:
         "--test-mode",
         action="store_true",
         help="Don't connect to REST API. Simulate running a set of matches right now"
+    )
+    parser.add_argument(
+        "--test-abort",
+        action="store_true",
+        help="Run all actions listed under the 'abort_actions' key of the config and exit"
     )
 
     return parser.parse_args()
