@@ -142,7 +142,11 @@ def run(config: RunnerConf) -> None:
 
 
 def test_match(config: RunnerConf) -> None:
-    # start test server in background thread
+    """
+    Simulate running a set of matches right now.
+
+    Runs the test server in a background thread to provide match data.
+    """
     run_server()
 
     test_config = config._replace(api_base="http://127.0.0.1:8008/")
@@ -197,7 +201,7 @@ def main() -> None:
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(description="Auto-match script")
+    parser = argparse.ArgumentParser(description="Trigger OSC cues based on match time")
     parser.add_argument(
         "config",
         help="Path to the configuration file",

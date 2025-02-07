@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+"""Server for emulating the current match API endpoint."""
 from __future__ import annotations
 
 import argparse
