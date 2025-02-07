@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass
 from typing import Any, NamedTuple, Union
+
+LOGGER = logging.getLogger(__name__)
 
 
 class JSONWithCommentsDecoder(json.JSONDecoder):
@@ -35,6 +38,7 @@ def load_config(filename: str) -> dict[str, Any]:
         config: dict = json.load(f, cls=JSONWithCommentsDecoder)
 
     # Ensure top-level keys are present
+    assert 'api_url' in config, "'api_url' must be specified in the config file"
     config.setdefault('devices', [])
     config.setdefault('actions', [])
     config.setdefault('abort_actions', [])
@@ -43,6 +47,45 @@ def load_config(filename: str) -> dict[str, Any]:
 
 
 OSC_TYPES = Union[str, float, int, bool]
+
+
+class ArgTemplate(NamedTuple):
+    """A placeholder to allow templating the match number into numeric arguments."""
+
+    template: str
+    type: str
+
+    @classmethod
+    def setup(cls, template: str) -> ArgTemplate:
+        """
+        Convert the packed template string into a separate template and type.
+
+        The packed form is "{<var:type>}" where var is the name of the variable
+        to be templated.
+
+        :raises ValueError: If the input string is invalid.
+        """
+        # Check this input is in the proper form
+        if not (template.startswith('{<') and template.endswith('>}')):
+            raise ValueError("Invalid template format")
+
+        # remove template brackets
+        template_name, typename = template[2:-2].split(':', 1)
+
+        # validate type is one we support
+        if typename not in ('int', 'float'):
+            raise ValueError("Unsupported type")
+        return cls("{" + template_name + "}", typename)
+
+    def format(self, *args: Any, **kwargs: Any) -> float | int:
+        """Apply values to the template and return the formatted value."""
+        formatted_str = self.template.format(*args, **kwargs)
+        if self.type == 'int':
+            return int(formatted_str)
+        elif self.type == 'float':
+            return float(formatted_str)
+        else:
+            raise NotImplementedError
 
 
 class OSCMessage(NamedTuple):
@@ -56,7 +99,7 @@ class OSCMessage(NamedTuple):
 
     target: str
     message: str
-    args: list[OSC_TYPES] | OSC_TYPES
+    args: list[OSC_TYPES | ArgTemplate] | OSC_TYPES | ArgTemplate
 
 
 @dataclass
@@ -83,6 +126,54 @@ class Action:
         return NotImplemented
 
 
+@dataclass
+class MatchVerifier:
+    """Collection of tools to verify that matches are advancing as expected."""
+
+    final_action_time: float
+
+    in_match: bool = False
+    # These values are only valid while in_match is true
+    current_match: int = 0
+    last_time: float = 0.0
+
+    def validate_timing(self, game_time: float | None, match_num: int | None) -> bool:
+        """Validate the timing of the match."""
+        result = True
+        if game_time is None or match_num is None:
+            # Not in a match
+            if self.in_match:
+                # The match has unexpectedly ended
+                LOGGER.warning("Match finished unexpectedly.")
+                result = False
+            self.in_match = False
+            return result
+
+        if game_time > self.final_action_time:
+            self.in_match = False
+            return True
+
+        if not self.in_match:
+            # Just entered a match
+            self.in_match = True
+            self.current_match = match_num
+            self.last_time = game_time
+            return True
+
+        if self.current_match != match_num:
+            # We've changed match without completing the last one
+            LOGGER.warning("Match number changed mid-match")
+            result = False
+            self.in_match = False
+        elif game_time < self.last_time:
+            # We've reset within the same match
+            LOGGER.warning("Match time decreased changed mid-match")
+            result = False
+            self.in_match = False
+
+        return result
+
+
 def load_actions(config: dict[str, Any], abort_actions: bool = False) -> list[Action]:
     """Load the actions from the config."""
     actions: list[Action] = []
@@ -91,14 +182,28 @@ def load_actions(config: dict[str, Any], abort_actions: bool = False) -> list[Ac
     for action in config[action_key]:
         # Time is not used for abort actions
         action_time = 0 if abort_actions else float(action['time'])
-        # TODO: Implement templating for non-string arguments
+
+        args = action['args']
+
+        # Handle templating for non-string arguments
+        for index, arg in enumerate(args):
+            if isinstance(arg, str) and arg.startswith('{<'):
+                try:
+                    args[index] = ArgTemplate.setup(arg)
+                except ValueError:
+                    action_name = f"{len(actions)}"
+                    if 'description' in action:
+                        action_name += f" {action['description']}"
+                    raise ValueError(
+                        f"Argument {index} of action {action_name}"
+                    )
 
         actions.append(Action(
             time=action_time,
             message=OSCMessage(
                 target=action['device'],
                 message=action['message'],
-                args=action['args'],
+                args=args,
             ),
             description=action.get('description', ""),
         ))

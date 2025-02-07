@@ -5,15 +5,28 @@ from __future__ import annotations
 import argparse
 import logging
 from bisect import bisect_left
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep
+from typing import NamedTuple
 
 import requests
 
 from .osc import OSCClient
-from .utils import Action, load_actions, load_config, validate_actions
+from .test_server import run_server
+from .utils import Action, MatchVerifier, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
+
+
+class RunnerConf(NamedTuple):
+    """Active config for the runner."""
+
+    api_base: str
+    osc_client: OSCClient
+    actions: list[Action]
+    abort_actions: list[Action]
+    sleep_increment: float = 2
+    lock_in_time: float = 10
 
 
 def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
@@ -38,7 +51,7 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     ).total_seconds()
 
     clock_diff = (
-        datetime.now() - datetime.fromisoformat(current_time)
+        datetime.now(tz=timezone.utc) - datetime.fromisoformat(current_time)
     ).total_seconds() * 1000
 
     LOGGER.debug(
@@ -50,35 +63,46 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     return game_time, match_num
 
 
-def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
+def run_abort(actions: list[Action], osc_client: OSCClient) -> None:
+    """Run the actions that are needed to exit a match early."""
+    LOGGER.warning("[UNEXPECTED TIMING] Running abort actions. A delay may have been added.")
+    for index, action in enumerate(actions):
+        LOGGER.info("Performing action %d: %s", index, action.description)
+        osc_client.send_message(action.message, 0)
+
+
+def run(config: RunnerConf) -> None:
     """Run cues for each match."""
+    final_action_time = config.actions[-1].time
+    match_verifier = MatchVerifier(final_action_time)
     # TODO: Implement error handling
     while True:
-        # TODO: Implement abort actions
-        # TODO: extract magic numbers to arguments
-        game_time, match_num = get_game_time(api_base)
+        game_time, match_num = get_game_time(config.api_base)
+
+        if not match_verifier.validate_timing(game_time, match_num):
+            run_abort(config.abort_actions, config.osc_client)
 
         if game_time is None:
             # No match is currently running
-            sleep(2)
+            sleep(config.sleep_increment)
             continue
 
-        next_action = bisect_left(actions, game_time)
-        if next_action > len(actions):
+        next_action = bisect_left(config.actions, game_time)
+        if next_action >= len(config.actions):
             # All actions have been performed
-            sleep(2)
+            sleep(config.sleep_increment)
             continue
 
-        action = actions[next_action]
+        action = config.actions[next_action]
         remaining_time = action.time - game_time
 
-        if remaining_time > 10:
-            sleep(2)
+        if remaining_time > config.lock_in_time:
+            sleep(config.sleep_increment)
             continue
 
         LOGGER.info(
-            "Performing action at %.3f (in %.2s secs): %s",
-            game_time,
+            "Scheduling action for %.1f (in %.3f secs): %s",
+            action.time,
             remaining_time,
             action.description
         )
@@ -87,16 +111,37 @@ def run(api_base: str, actions: list[Action], osc_client: OSCClient) -> None:
 
         # Handle multiple actions occurring at the same time
         active_time = action.time
-        for action in actions[next_action:]:
+        for action in config.actions[next_action:]:
             if action.time != active_time:
                 break
-            osc_client.send_message(action.message, match_num)
+            LOGGER.info("Performing action at %.1f: %s", action.time, action.description)
+            config.osc_client.send_message(action.message, match_num)
+
+
+def test_match(config: RunnerConf) -> None:
+    # start test server in background thread
+    run_server()
+
+    test_config = config._replace(api_base="http://127.0.0.1:8008/")
+
+    try:
+        run(test_config)
+    except KeyboardInterrupt:
+        LOGGER.info("Exiting")
+
+
+def test_abort(config: RunnerConf) -> None:
+    """Run all actions listed under the "abort_actions" key of the config and exit."""
+    run_abort(config.abort_actions, config.osc_client)
 
 
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
-    logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
+    logging.basicConfig(
+        format="[%(asctime)s] %(levelname)s: %(message)s",
+        level=(logging.DEBUG if args.debug else logging.INFO)
+    )
 
     config = load_config(args.config)
 
@@ -109,26 +154,44 @@ def main() -> None:
     validate_actions(osc_clients, actions)
     validate_actions(osc_clients, abort_actions)
 
-    run(args.api_base, actions, osc_client)
+    runner_config = RunnerConf(
+        config['api_url'],
+        osc_client,
+        actions,
+        abort_actions,
+    )
+
+    if args.test_abort:
+        test_abort(runner_config)
+    elif args.test_mode:
+        test_match(runner_config)
+    else:
+        try:
+            run(runner_config)
+        except KeyboardInterrupt:
+            LOGGER.info("Exiting")
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Auto-match script")
     parser.add_argument(
-        "--api-base",
-        default="http://compbox.srobo/comp-api",
-        help="Base URL for the competition API",
-    )
-    parser.add_argument(
-        "--config",
-        default="config.json",
+        "config",
         help="Path to the configuration file",
     )
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug logging"
     )
-    # TODO implement test mode and test match mode
+    parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="Don't connect to REST API. Simulate running a set of matches right now"
+    )
+    parser.add_argument(
+        "--test-abort",
+        action="store_true",
+        help="Run all actions listed under the 'abort_actions' key of the config and exit"
+    )
 
     return parser.parse_args()
 
