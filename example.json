@@ -11,7 +11,8 @@
         {
             "time": -10,
             "device": "lighting",
-            "message": "/set_color",
+            // {match_num} will be replaced by the current match number when the action runs
+            "message": "/set_color/{match_num}",
             "args": ["#FF0000"],
             "description": "Set the color of the lighting to red"
         }
