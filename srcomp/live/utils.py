@@ -34,8 +34,19 @@ def load_config(filename: str) -> dict[str, Any]:
 
     Comments are lines starting with '//'.
     """
+    try:
+        import yaml
+        yaml_available = True
+    except ImportError:
+        yaml_available = False
+
     with open(filename) as f:
-        config: dict = json.load(f, cls=JSONWithCommentsDecoder)
+        # Support loading YAML files if PyYAML is available
+        config: dict
+        if yaml_available and (filename.endswith('.yaml') or filename.endswith('.yml')):
+            config = yaml.load(f, yaml.Loader)
+        else:
+            config = json.load(f, cls=JSONWithCommentsDecoder)
 
     # Ensure top-level keys are present
     assert 'api_url' in config, "'api_url' must be specified in the config file"

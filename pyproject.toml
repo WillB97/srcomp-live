@@ -19,7 +19,9 @@ dev = [
     "mypy==1.9.0",
     "build",
     "types-requests",
+    "types-PyYAML >=6,<7",
 ]
+yaml = ["PyYAML >=6,<7"]
 
 [project.scripts]
 srcomp-live = "srcomp.live.main:main"

@@ -1,0 +1,20 @@
+# The HTTP path to the root of the HTTP API
+api_url: http://compbox.srobo/comp-api
+devices:
+  # The IP addresses and ports of the devices that will be controlled
+  lighting: 192.168.0.2:8000
+  sound: 192.168.0.3:4000
+actions:  # These actions will be executed at the specified time within a match
+- args:
+  - '#FF0000'
+  description: Set the color of the lighting to red
+  device: lighting
+  # {match_num} will be replaced by the current match number when the action runs
+  message: /set_color/{match_num}
+  time: -10
+abort_actions:  # These actions will be executed when a match unexpectedly ends
+- args:
+  - '#FFFFFF'
+  description: Set the color of the lighting to white
+  device: lighting
+  message: /set_color
