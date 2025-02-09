@@ -21,7 +21,7 @@ LOGGER = logging.getLogger(__name__)
 class RunnerConf(NamedTuple):
     """Active config for the runner."""
 
-    api_base: str
+    api_url: str
     osc_client: OSCClient
     actions: list[Action]
     abort_actions: list[Action]
@@ -29,7 +29,7 @@ class RunnerConf(NamedTuple):
     lock_in_time: float = 10
 
 
-def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
+def get_game_time(api_url: str) -> tuple[float, int] | tuple[None, None]:
     """
     Get the current game time from the competition API.
 
@@ -37,7 +37,7 @@ def get_game_time(api_base: str) -> tuple[float, int] | tuple[None, None]:
     Game time is returned in seconds relative to the start of the match.
     """
     try:
-        r = requests.get(api_base + '/current', timeout=2)
+        r = requests.get(api_url, timeout=2)
         r.raise_for_status()
     except requests.exceptions.Timeout:
         raise ValueError("API request timed out")
@@ -97,7 +97,7 @@ def run(config: RunnerConf) -> None:
     match_verifier = MatchVerifier(final_action_time)
     while True:
         try:
-            game_time, match_num = get_game_time(config.api_base)
+            game_time, match_num = get_game_time(config.api_url)
         except ValueError as e:
             LOGGER.warning(e)
             game_time, match_num = None, None
@@ -149,7 +149,7 @@ def test_match(config: RunnerConf) -> None:
     """
     run_server()
 
-    test_config = config._replace(api_base="http://127.0.0.1:8008/")
+    test_config = config._replace(api_url="http://127.0.0.1:8008/")
 
     try:
         run(test_config)

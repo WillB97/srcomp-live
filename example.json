@@ -1,6 +1,6 @@
 {
     // The HTTP path to the root of the HTTP API
-    "api_url": "http://compbox.srobo/comp-api",
+    "api_url": "http://compbox.srobo/comp-api/current",
     "devices": {
         // The IP addresses and ports of the devices that will be controlled
         "lighting": "192.168.0.2:8000",
