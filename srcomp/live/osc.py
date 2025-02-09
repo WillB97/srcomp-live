@@ -41,7 +41,7 @@ class OSCClient:
 
         # Create clients for each device in the config
         for name, uri in devices.items():
-            ip, port = uri.split(':')
+            ip, port = uri.rsplit(':', maxsplit=1)
             self.clients[name] = SimpleUDPClient(ip, int(port))
 
     def send_message(self, message: OSCMessage, match_num: int) -> None:
