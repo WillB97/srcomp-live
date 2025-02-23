@@ -10,7 +10,7 @@ from typing import NamedTuple
 
 from .osc import OSCClient
 from .test_server import run_server
-from .time_fetch import GAME_TIME_CALLABLE, available_game_time_fn
+from .time_fetch import available_game_time_fn
 from .utils import Action, MatchVerifier, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class RunnerConf(NamedTuple):
     osc_client: OSCClient
     actions: list[Action]
     abort_actions: list[Action]
-    game_time_fn: GAME_TIME_CALLABLE
+    api_type: str = "srcomp"
     sleep_increment: float = 2
     lock_in_time: float = 10
 
@@ -40,9 +40,10 @@ def run(config: RunnerConf) -> None:
     """Run cues for each match."""
     final_action_time = config.actions[-1].time
     match_verifier = MatchVerifier(final_action_time)
+    game_time_fn = available_game_time_fn[config.api_type]
     while True:
         try:
-            game_time, match_num = config.game_time_fn(config.api_url)
+            game_time, match_num = game_time_fn(config.api_url)
         except ValueError as e:
             LOGGER.warning(e)
             game_time, match_num = None, None
@@ -126,12 +127,14 @@ def main() -> None:
     validate_actions(osc_clients, actions)
     validate_actions(osc_clients, abort_actions)
 
+    assert config['api_type'] in available_game_time_fn, "Unsupported API type"
+
     runner_config = RunnerConf(
         config['api_url'],
         osc_client,
         actions,
         abort_actions,
-        game_time_fn=available_game_time_fn[config['api_type']],
+        api_type=config['api_type'],
     )
 
     if args.test_abort:

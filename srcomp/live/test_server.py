@@ -22,6 +22,7 @@ class ServerConf(NamedTuple):
     start_time: float = time()
     start_num: int = 0
     end_num: int | None = None
+    api_type: str = "srcomp"
 
 
 _CONFIG = ServerConf()
@@ -55,6 +56,44 @@ def get_match(curr_time: float) -> tuple[float, int] | None:
     return (match_time, match_num)
 
 
+def format_output_srcomp(match_data: tuple[float, int] | None) -> dict[str, Any]:
+    """Format the output for the srcomp API."""
+    payload: dict[str, Any] = deepcopy(BASE_TEMPLATE)
+    if match_data is None:
+        # No match ongoing
+        payload["time"] = datetime.now(timezone.utc).isoformat()
+        LOGGER.info("No match currently running")
+        return payload
+
+    match_time, match_num = match_data
+    payload["matches"].append({
+        "times": {
+            "game": {
+                "start": datetime.fromtimestamp(match_time, tz=timezone.utc).isoformat()
+            }
+        },
+        "num": match_num
+    })
+
+    payload["_debug"] = {"game_time": time() - match_time}
+    payload["_debug"]["slot_time"] = payload["_debug"]["game_time"] + MATCH_CONFIG["pre"]
+    if payload["_debug"]["game_time"] < 0:
+        payload["_debug"]["match_phase"] = "pre"
+    elif payload["_debug"]["game_time"] < MATCH_CONFIG["match"]:
+        payload["_debug"]["match_phase"] = "match"
+    else:
+        payload["_debug"]["match_phase"] = "post"
+    payload["time"] = datetime.now(timezone.utc).isoformat()
+    LOGGER.info(f"Match {match_num}, match time: {payload['_debug']['game_time']:.3f}")
+    return payload
+
+
+output_formatters = {
+    "srcomp": format_output_srcomp,
+    "srcomp-compensated": format_output_srcomp,
+}
+
+
 class ServerHandler(BaseHTTPRequestHandler):
     """Handler for HTTP requests."""
 
@@ -74,36 +113,10 @@ class ServerHandler(BaseHTTPRequestHandler):
         self.send_header("Content-type", "application/json")
         self.end_headers()
 
-        payload: dict[str, Any] = deepcopy(BASE_TEMPLATE)
         match_data = get_match(time())
-        if match_data is None:
-            # No match ongoing
-            payload["time"] = datetime.now(timezone.utc).isoformat()
-            self.wfile.write(json.dumps(payload).encode())
-            LOGGER.info("No match currently running")
-            return
+        payload = output_formatters[_CONFIG.api_type](match_data)
 
-        match_time, match_num = match_data
-        payload["matches"].append({
-            "times": {
-                "game": {
-                    "start": datetime.fromtimestamp(match_time, tz=timezone.utc).isoformat()
-                }
-            },
-            "num": match_num
-        })
-
-        payload["_debug"] = {"game_time": time() - match_time}
-        payload["_debug"]["slot_time"] = payload["_debug"]["game_time"] + MATCH_CONFIG["pre"]
-        if payload["_debug"]["game_time"] < 0:
-            payload["_debug"]["match_phase"] = "pre"
-        elif payload["_debug"]["game_time"] < MATCH_CONFIG["match"]:
-            payload["_debug"]["match_phase"] = "match"
-        else:
-            payload["_debug"]["match_phase"] = "post"
-        payload["time"] = datetime.now(timezone.utc).isoformat()
         self.wfile.write(json.dumps(payload).encode())
-        LOGGER.info(f"Match {match_num}, match time: {payload['_debug']['game_time']:.3f}")
 
 
 def run_server(
@@ -111,6 +124,7 @@ def run_server(
     start_match: int = 0,
     end_match: int | None = None,
     start_delay: float = 0,
+    api_type: str = "srcomp",
 ) -> None:
     """Wrapper for run()."""
     thread = threading.Thread(
@@ -120,6 +134,7 @@ def run_server(
             start_match=start_match,
             end_match=end_match,
             start_delay=start_delay,
+            api_type=api_type,
         )],
         daemon=True
     )
@@ -134,6 +149,7 @@ def run(args: argparse.Namespace) -> None:
         start_num=args.start_match,
         end_num=args.end_match,
         start_time=time() + args.start_delay,
+        api_type=args.api_type
     )
     first_match = datetime.fromtimestamp(
         _CONFIG.start_time + MATCH_CONFIG["pre"],
@@ -162,6 +178,9 @@ def parse_args() -> argparse.Namespace:
         "--start-match", type=int, default=0,
         help="The match number to use for the first match")
     parser.add_argument("--end-match", type=int, default=None, help="The highest match to run")
+    parser.add_argument(
+        "--api-type", default="srcomp", choices=output_formatters.keys(),
+        help="The type of API to simulate (srcomp, srcomp-compensated)")
 
     return parser.parse_args()
 
