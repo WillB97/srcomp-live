@@ -93,7 +93,7 @@ def test_match(config: RunnerConf) -> None:
 
     Runs the test server in a background thread to provide match data.
     """
-    run_server()
+    run_server(api_type=config.api_type)
 
     test_config = config._replace(api_url="http://127.0.0.1:8008/")
 
