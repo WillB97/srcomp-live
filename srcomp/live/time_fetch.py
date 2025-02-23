@@ -7,6 +7,7 @@ The function must return a tuple containing the game time in seconds and the mat
 If a match is not currently running, both elements should be None.
 """
 import logging
+import time
 from datetime import datetime
 from typing import Callable, Union
 
@@ -20,16 +21,18 @@ GAME_TIME_CALLABLE = Callable[[str], GAME_TIME_RTN]
 
 
 # Helper functions
-def raw_request_json(api_url: str) -> dict:
+def raw_request_json(api_url: str) -> tuple[float, dict]:
     """
     Make a request to the competition API and return the JSON response.
 
     :param api_url: The URL of the API endpoint to request.
-    :return: The JSON response from the API.
+    :return: A tuple containing the latency of the request and the JSON response.
     :raises ValueError: If the request fails.
     """
     try:
+        start_time = time.time()
         r = requests.get(api_url, timeout=2)
+        end_time = time.time()
         r.raise_for_status()
     except requests.exceptions.Timeout:
         raise ValueError("API request timed out")
@@ -38,12 +41,15 @@ def raw_request_json(api_url: str) -> dict:
     except requests.exceptions.RequestException:
         raise ValueError("Failed to connect to API")
 
+    latency = (end_time - start_time) / 2
+    LOGGER.debug("API request took %.3f seconds", latency)
+
     try:
         data: dict = r.json()
     except requests.exceptions.JSONDecodeError:
         raise ValueError(f"Failed to decode JSON: {r.text!r}")
 
-    return data
+    return latency, data
 
 
 def load_timestamp(timestamp: str) -> datetime:
@@ -62,18 +68,19 @@ def load_timestamp(timestamp: str) -> datetime:
 
 
 # API functions
-def get_srcomp_game_time(api_url: str) -> GAME_TIME_RTN:
+def get_srcomp_game_time_full(api_url: str, latency_comp: bool) -> GAME_TIME_RTN:
     """
-    Get the current game time from the SRComp API.
+    Get the current game time from the SRComp API, optionally compensating for network latency.
 
     Game time is returned in seconds relative to the start of the match.
 
     :param api_url: The URL of the API endpoint to request.
+    :param latency_comp: Whether to compensate for network latency.
     :return: A tuple containing the game time and match number.
              Each element is None if a match is not running.
     :raises ValueError: If the request fails or the response is invalid.
     """
-    data = raw_request_json(api_url)
+    latency, data = raw_request_json(api_url)
 
     try:
         start_time = data['matches'][0]['times']['game']['start']
@@ -88,6 +95,10 @@ def get_srcomp_game_time(api_url: str) -> GAME_TIME_RTN:
     match_time = load_timestamp(start_time)
 
     game_time = (curr_time - match_time).total_seconds()
+    if latency_comp:
+        # Offset game time by the single-direction latency
+        game_time -= latency
+
     clock_diff = (now - curr_time).total_seconds() * 1000
 
     LOGGER.debug(
@@ -99,6 +110,35 @@ def get_srcomp_game_time(api_url: str) -> GAME_TIME_RTN:
     return game_time, match_num
 
 
+def get_srcomp_game_time(api_url: str) -> GAME_TIME_RTN:
+    """
+    Get the current game time from the SRComp API.
+
+    Game time is returned in seconds relative to the start of the match.
+
+    :param api_url: The URL of the API endpoint to request.
+    :return: A tuple containing the game time and match number.
+             Each element is None if a match is not running.
+    :raises ValueError: If the request fails or the response is invalid.
+    """
+    return get_srcomp_game_time_full(api_url, latency_comp=False)
+
+
+def get_srcomp_game_time_compensated(api_url: str) -> GAME_TIME_RTN:
+    """
+    Get the current game time from the SRComp API, compensating for network latency.
+
+    Game time is returned in seconds relative to the start of the match.
+
+    :param api_url: The URL of the API endpoint to request.
+    :return: A tuple containing the game time and match number.
+             Each element is None if a match is not running.
+    :raises ValueError: If the request fails or the response is invalid.
+    """
+    return get_srcomp_game_time_full(api_url, latency_comp=True)
+
+
 available_game_time_fn = {
     'srcomp': get_srcomp_game_time,
+    'srcomp_compensated': get_srcomp_game_time_compensated,
 }
