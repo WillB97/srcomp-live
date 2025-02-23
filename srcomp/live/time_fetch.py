@@ -9,19 +9,19 @@ If a match is not currently running, both elements should be None.
 import logging
 import time
 from datetime import datetime
-from typing import Callable, Union
+from typing import Callable, Tuple, Union
 
 import requests
 
 LOGGER = logging.getLogger(__name__)
 
 
-GAME_TIME_RTN = Union[tuple[float, int], tuple[None, None]]
+GAME_TIME_RTN = Union[Tuple[float, int], Tuple[None, None]]
 GAME_TIME_CALLABLE = Callable[[str], GAME_TIME_RTN]
 
 
 # Helper functions
-def raw_request_json(api_url: str) -> tuple[float, dict]:
+def raw_request_json(api_url: str) -> Tuple[float, dict]:
     """
     Make a request to the competition API and return the JSON response.
 
