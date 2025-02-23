@@ -5,14 +5,12 @@ from __future__ import annotations
 import argparse
 import logging
 from bisect import bisect_left
-from datetime import datetime
 from time import sleep
 from typing import NamedTuple
 
-import requests
-
 from .osc import OSCClient
 from .test_server import run_server
+from .time_fetch import GAME_TIME_CALLABLE, available_game_time_fn
 from .utils import Action, MatchVerifier, load_actions, load_config, validate_actions
 
 LOGGER = logging.getLogger(__name__)
@@ -25,62 +23,9 @@ class RunnerConf(NamedTuple):
     osc_client: OSCClient
     actions: list[Action]
     abort_actions: list[Action]
+    game_time_fn: GAME_TIME_CALLABLE
     sleep_increment: float = 2
     lock_in_time: float = 10
-
-
-def get_game_time(api_url: str) -> tuple[float, int] | tuple[None, None]:
-    """
-    Get the current game time from the competition API.
-
-    None is returned if a match is not currently running.
-    Game time is returned in seconds relative to the start of the match.
-    """
-    try:
-        r = requests.get(api_url, timeout=2)
-        r.raise_for_status()
-    except requests.exceptions.Timeout:
-        raise ValueError("API request timed out")
-    except requests.exceptions.HTTPError as e:
-        raise ValueError(f"API request failed: {e}")
-    except requests.exceptions.RequestException:
-        raise ValueError("Failed to connect to API")
-
-    try:
-        data = r.json()
-    except requests.exceptions.JSONDecodeError:
-        raise ValueError(f"Failed to decode JSON: {r.text!r}")
-
-    try:
-        start_time = data['matches'][0]['times']['game']['start']
-        current_time = data['time']
-        match_num = data['matches'][0]['num']
-    except (ValueError, IndexError, KeyError):
-        LOGGER.debug("Not in a match")
-        return None, None
-
-    try:
-        curr_time = datetime.fromisoformat(current_time)
-    except (ValueError, TypeError):
-        raise ValueError(f"Failed to decode timestamp: {current_time}")
-
-    now = datetime.now(tz=curr_time.tzinfo)
-
-    try:
-        match_time = datetime.fromisoformat(start_time)
-    except (ValueError, TypeError):
-        raise ValueError(f"Failed to decode timestamp: {start_time}")
-
-    game_time = (curr_time - match_time).total_seconds()
-    clock_diff = (now - curr_time).total_seconds() * 1000
-
-    LOGGER.debug(
-        "Received game time %.3f for match %i, clock diff: %.2f ms",
-        game_time,
-        match_num,
-        clock_diff,
-    )
-    return game_time, match_num
 
 
 def run_abort(actions: list[Action], osc_client: OSCClient) -> None:
@@ -97,7 +42,7 @@ def run(config: RunnerConf) -> None:
     match_verifier = MatchVerifier(final_action_time)
     while True:
         try:
-            game_time, match_num = get_game_time(config.api_url)
+            game_time, match_num = config.game_time_fn(config.api_url)
         except ValueError as e:
             LOGGER.warning(e)
             game_time, match_num = None, None
@@ -186,6 +131,7 @@ def main() -> None:
         osc_client,
         actions,
         abort_actions,
+        game_time_fn=available_game_time_fn[config['api_type']],
     )
 
     if args.test_abort:

@@ -25,6 +25,7 @@ Here is an example configuration file that sets a theoretical lighting controlle
 ```json
 {
     "api_url": "http://compbox.srobo/comp-api/current",
+    "api_type": "srcomp",
     "devices": {
         "lighting": "192.168.0.2:8000"
     },
