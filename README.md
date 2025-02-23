@@ -50,6 +50,12 @@ Here is an example configuration file that sets a theoretical lighting controlle
 ```
 
 The configuration contains a number of sections.
+The `api_url` key is the URL of the API endpoint to access to get information about the current match.
+The `api_type` key is the type of API to use, currently only `srcomp` is supported.
+
+The devices section contains a list of devices that can be controlled by the system.
+Each device is given a name and an address to send OSC messages to.
+The name is used in the `actions` and `abort_actions` sections to specify which device to send the action to.
 
 The actions section contains a list of the actions that will be executed within the match.
 The keys available in each action are listed below.
@@ -66,3 +72,53 @@ The `abort_actions` section has the same set of keys as the `actions` section, e
 These actions are all executed if the system detects a match unexpectedly end or the time within a match decrease.
 This can be used to stop sound effects and set lighting to an out of match state when match is delayed.
 
+### Templating
+
+The active match number can be included in the OSC message or arguments by using the `{match_num}` template.
+This will be replaced with the current match number when the action is executed.
+
+To allow templating the match number into integer and float arguments, the template string `{<match_num:int>}` or `{<match_num:float>}` can be used.
+This will be replaced with the current match number when the action is executed, but as a number rather than a string.
+
+## Running
+Once the configuration file has been created, there are a few tools available to test this configuration.
+To try out the configuration, you can use the command:
+```bash
+srcomp-live --test-mode <config>
+```
+This will run the configuration in test mode, where the actions will be executed as
+if they were being run during a match, without needing to connect to the SRComp API.
+
+If you want to test the abort actions, you can use the command:
+```bash
+srcomp-live --test-abort <config>
+```
+This will run all the configured abort actions, and then exit.
+
+To run the configuration, where the actions will be executed based on the current match state, you can use the command:
+```bash
+srcomp-live <config>
+```
+When running in normal mode, the program will continue to run until it is stopped with `Ctrl+C`.
+
+While running, the program will log messages to the console.
+These messages will include a message a few seconds before each action is performed and a message when the action is run.
+If the program detects that a match has unexpectedly ended or the time has gone backwards, it will log a warning message.
+
+## Useful cues
+
+Program | Action | OSC Message
+--- | --- | ---
+MagicQ | Jump to Cue | `/pb/<playback>/<cue>`
+MagicQ | Activate playback | `/pb/<playback>/go`
+MagicQ | Release playback | `/pb/<playback>/release`
+QLab | Connect to workspace | `[/workspace/<id>]/connect` `<password-string>`
+QLab | Run cue | `[/workspace/<id>]/go`
+QLab | Run specific cue | `[/workspace/<id>]/go/<cue>`
+QLab | Stop cue | `[/workspace/<id>]/stop`
+QLab | Immediately stop all cues | `[/workspace/<id>]/hardStop`/`[/workspace/<id>]/panic`
+QLab | Jump to cue | `[/workspace/<id>]/select/<cue>`
+
+See also:
+- [QLab OSC documentation](https://qlab.app/docs/v5/scripting/osc-dictionary-v5/)
+- [MagicQ OSC documentation](https://secure.chamsys.co.uk/help/documentation/magicq/osc.html)
