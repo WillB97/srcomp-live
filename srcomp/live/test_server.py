@@ -90,7 +90,7 @@ def format_output_srcomp(match_data: tuple[float, int] | None) -> dict[str, Any]
 
 output_formatters = {
     "srcomp": format_output_srcomp,
-    "srcomp-compensated": format_output_srcomp,
+    "srcomp_compensated": format_output_srcomp,
 }
 
 
@@ -125,6 +125,7 @@ def run_server(
     end_match: int | None = None,
     start_delay: float = 0,
     api_type: str = "srcomp",
+    match_timings: dict[str, int] = MATCH_CONFIG,
 ) -> None:
     """Wrapper for run()."""
     thread = threading.Thread(
@@ -135,6 +136,9 @@ def run_server(
             end_match=end_match,
             start_delay=start_delay,
             api_type=api_type,
+            match_pre=match_timings.get("pre", MATCH_CONFIG["pre"]),
+            match_len=match_timings.get("match", MATCH_CONFIG["match"]),
+            match_post=match_timings.get("post", MATCH_CONFIG["post"]),
         )],
         daemon=True
     )
@@ -151,6 +155,10 @@ def run(args: argparse.Namespace) -> None:
         start_time=time() + args.start_delay,
         api_type=args.api_type
     )
+    MATCH_CONFIG["pre"] = args.match_pre
+    MATCH_CONFIG["match"] = args.match_len
+    MATCH_CONFIG["post"] = args.match_post
+
     first_match = datetime.fromtimestamp(
         _CONFIG.start_time + MATCH_CONFIG["pre"],
         timezone.utc
@@ -181,6 +189,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--api-type", default="srcomp", choices=output_formatters.keys(),
         help="The type of API to simulate (srcomp, srcomp-compensated)")
+    parser.add_argument(
+        "--match-pre", type=int, default=MATCH_CONFIG["pre"],
+        help="The time before a match starts")
+    parser.add_argument(
+        "--match-len", type=int, default=MATCH_CONFIG["match"],
+        help="The time a match lasts")
+    parser.add_argument(
+        "--match-post", type=int, default=MATCH_CONFIG["post"],
+        help="The time after a match ends")
 
     return parser.parse_args()
 

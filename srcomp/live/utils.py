@@ -137,6 +137,9 @@ class Action:
             return self.time < value.time
         return NotImplemented
 
+    def __str__(self) -> str:
+        return f"{self.description!r} @ {self.time:.1f}s"
+
 
 @dataclass
 class MatchVerifier:

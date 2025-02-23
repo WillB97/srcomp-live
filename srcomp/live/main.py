@@ -87,13 +87,13 @@ def run(config: RunnerConf) -> None:
             config.osc_client.send_message(action.message, match_num)
 
 
-def test_match(config: RunnerConf) -> None:
+def test_match(config: RunnerConf, match_timings: dict[str, int]) -> None:
     """
     Simulate running a set of matches right now.
 
     Runs the test server in a background thread to provide match data.
     """
-    run_server(api_type=config.api_type)
+    run_server(api_type=config.api_type, match_timings=match_timings)
 
     test_config = config._replace(api_url="http://127.0.0.1:8008/")
 
@@ -140,7 +140,7 @@ def main() -> None:
     if args.test_abort:
         test_abort(runner_config)
     elif args.test_mode:
-        test_match(runner_config)
+        test_match(runner_config, config['match_slot_lengths'])
     else:
         try:
             run(runner_config)

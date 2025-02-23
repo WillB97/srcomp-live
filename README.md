@@ -45,7 +45,12 @@ Here is an example configuration file that sets a theoretical lighting controlle
             "args": ["#FFFFFF"],
             "description": "Set the color of the lighting to white"
         }
-    ]
+    ],
+    "match_slot_lengths": {
+        "pre": 60,
+        "match": 150,
+        "post": 90
+    }
 }
 ```
 
@@ -71,6 +76,9 @@ The keys available in each action are listed below.
 The `abort_actions` section has the same set of keys as the `actions` section, except for the `time` key.
 These actions are all executed if the system detects a match unexpectedly end or the time within a match decrease.
 This can be used to stop sound effects and set lighting to an out of match state when match is delayed.
+
+The `match_slot_lengths` section contains the lengths of the different sections of a match slot in seconds.
+These are used to validate that the actions fall within the match slot and to allow test-mode to correctly simulate the match.
 
 ### Templating
 
