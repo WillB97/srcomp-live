@@ -41,7 +41,7 @@ def raw_request_json(api_url: str) -> tuple[float, dict]:
     except requests.exceptions.RequestException:
         raise ValueError("Failed to connect to API")
 
-    latency = (end_time - start_time) / 2
+    latency = (end_time - start_time)
     LOGGER.debug("API request took %.3f seconds", latency)
 
     try:
@@ -49,7 +49,7 @@ def raw_request_json(api_url: str) -> tuple[float, dict]:
     except requests.exceptions.JSONDecodeError:
         raise ValueError(f"Failed to decode JSON: {r.text!r}")
 
-    return latency, data
+    return latency / 2, data
 
 
 def load_timestamp(timestamp: str) -> datetime:
