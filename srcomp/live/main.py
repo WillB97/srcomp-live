@@ -124,8 +124,8 @@ def main() -> None:
 
     # Validate that all actions have a valid device
     osc_clients = list(osc_client.clients.keys())
-    validate_actions(osc_clients, actions)
-    validate_actions(osc_clients, abort_actions)
+    validate_actions(osc_clients, actions, config['match_slot_lengths'])
+    validate_actions(osc_clients, abort_actions, {})
 
     assert config['api_type'] in available_game_time_fn, "Unsupported API type"
 

@@ -53,6 +53,7 @@ def load_config(filename: str) -> dict[str, Any]:
     config.setdefault('devices', [])
     config.setdefault('actions', [])
     config.setdefault('abort_actions', [])
+    config.setdefault('match_slot_lengths', {})
 
     return config
 
@@ -223,8 +224,24 @@ def load_actions(config: dict[str, Any], abort_actions: bool = False) -> list[Ac
     return actions
 
 
-def validate_actions(devices: list[str], actions: list[Action]) -> None:
+def validate_actions(
+    devices: list[str],
+    actions: list[Action],
+    match_timings: dict[str, int],
+) -> None:
     """Validate that all actions have a valid device."""
+    match_earliest = - match_timings.get('pre', 30)
+    match_latest = match_timings.get('match', 150) + match_timings.get('post', 90)
+
     for action in actions:
         if action.message.target not in devices:
             raise ValueError(f"Unknown device {action.message.target!r} in action {action}")
+        if action.time < match_earliest:
+            raise ValueError(f"Action {action} is scheduled too early, this cue cannot be run")
+        if action.time > match_latest:
+            raise ValueError(f"Action {action} is scheduled too late, this cue cannot be run")
+        if (action.time - match_earliest) < 2:
+            LOGGER.warning(
+                f"Action {action} is scheduled very close to the start of the match slot, "
+                "this cue may not be run"
+            )

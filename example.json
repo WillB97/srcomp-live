@@ -27,5 +27,12 @@
             "args": ["#FFFFFF"],
             "description": "Set the color of the lighting to white"
         }
-    ]
+    ],
+    // The lengths of the pre-match, match, and post-match slots in seconds
+    // These values are used to validate that the actions are within the match slot
+    "match_slot_lengths": {
+        "pre": 60,
+        "match": 150,
+        "post": 90
+    }
 }
