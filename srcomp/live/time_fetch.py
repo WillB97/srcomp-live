@@ -138,7 +138,79 @@ def get_srcomp_game_time_compensated(api_url: str) -> GAME_TIME_RTN:
     return get_srcomp_game_time_full(api_url, latency_comp=True)
 
 
+def get_livecomp_game_time_full(api_url: str, latency_comp: bool) -> GAME_TIME_RTN:
+    """
+    Get the current game time from Livecomp API, optionally compensating for network latency.
+
+    Game time is returned in seconds relative to the start of the match.
+
+    :param api_url: The URL of the API endpoint to request.
+    :param latency_comp: Whether to compensate for network latency.
+    :return: A tuple containing the game time and match number.
+             Each element is None if a match is not running.
+    :raises ValueError: If the request fails or the response is invalid.
+    """
+    latency, data = raw_request_json(api_url)
+
+    try:
+        start_time = data['nextMatch']['startsAt']
+        current_time = data['nextMatch']['now']
+        match_num = data['nextMatch']['matchNumber']
+    except (ValueError, IndexError, KeyError):
+        LOGGER.debug("Not in a match")
+        return None, None
+
+    curr_time = load_timestamp(current_time)
+    now = datetime.now(tz=curr_time.tzinfo)
+    match_time = load_timestamp(start_time)
+
+    game_time = (curr_time - match_time).total_seconds()
+    if latency_comp:
+        # Offset game time by the single-direction latency
+        game_time -= latency
+
+    clock_diff = (now - curr_time).total_seconds() * 1000
+
+    LOGGER.debug(
+        "Received game time %.3f for match %i, clock diff: %.2f ms",
+        game_time,
+        match_num,
+        clock_diff,
+    )
+    return game_time, match_num
+
+
+def get_livecomp_game_time(api_url: str) -> GAME_TIME_RTN:
+    """
+    Get the current game time from the Livecomp API.
+
+    Game time is returned in seconds relative to the start of the match.
+
+    :param api_url: The URL of the API endpoint to request.
+    :return: A tuple containing the game time and match number.
+             Each element is None if a match is not running.
+    :raises ValueError: If the request fails or the response is invalid.
+    """
+    return get_livecomp_game_time_full(api_url, latency_comp=False)
+
+
+def get_livecomp_game_time_compensated(api_url: str) -> GAME_TIME_RTN:
+    """
+    Get the current game time from the Livecomp API, compensating for network latency.
+
+    Game time is returned in seconds relative to the start of the match.
+
+    :param api_url: The URL of the API endpoint to request.
+    :return: A tuple containing the game time and match number.
+             Each element is None if a match is not running.
+    :raises ValueError: If the request fails or the response is invalid.
+    """
+    return get_livecomp_game_time_full(api_url, latency_comp=True)
+
+
 available_game_time_fn = {
     'srcomp': get_srcomp_game_time,
     'srcomp_compensated': get_srcomp_game_time_compensated,
+    'livecomp': get_livecomp_game_time,
+    'livecomp_compensated': get_livecomp_game_time_compensated,
 }

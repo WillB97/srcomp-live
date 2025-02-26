@@ -88,9 +88,41 @@ def format_output_srcomp(match_data: tuple[float, int] | None) -> dict[str, Any]
     return payload
 
 
+def format_output_livecomp(match_data: tuple[float, int] | None) -> dict[str, Any]:
+    """Format the output for the Livecomp API."""
+    payload: dict[str, Any] = deepcopy(BASE_TEMPLATE)
+    if match_data is None:
+        # No match ongoing
+        payload["nextMatch"] = None
+        LOGGER.info("No match currently running")
+        return payload
+
+    match_time, match_num = match_data
+    payload["nextMatch"] = {
+        "matchNumber": match_num,
+        "startsAt": datetime.fromtimestamp(match_time, tz=timezone.utc).isoformat(),
+        "now": "2025-02-26T22:03:43.216+00:00"
+    }
+
+    payload["_debug"] = {"game_time": time() - match_time}
+    payload["_debug"]["slot_time"] = payload["_debug"]["game_time"] + MATCH_CONFIG["pre"]
+    if payload["_debug"]["game_time"] < 0:
+        payload["_debug"]["match_phase"] = "pre"
+    elif payload["_debug"]["game_time"] < MATCH_CONFIG["match"]:
+        payload["_debug"]["match_phase"] = "match"
+    else:
+        payload["_debug"]["match_phase"] = "post"
+
+    payload["nextMatch"]["now"] = datetime.now(timezone.utc).isoformat()
+    LOGGER.info(f"Match {match_num}, match time: {payload['_debug']['game_time']:.3f}")
+    return payload
+
+
 output_formatters = {
     "srcomp": format_output_srcomp,
     "srcomp_compensated": format_output_srcomp,
+    "livecomp": format_output_livecomp,
+    "livecomp_compensated": format_output_livecomp,
 }
 
 

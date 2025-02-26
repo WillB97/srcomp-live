@@ -1,7 +1,8 @@
 {
     // The HTTP path to the root of the HTTP API
     "api_url": "http://compbox.srobo/comp-api/current",
-    // The type of API that will be used. Supported values are "srcomp" and "srcomp_compensated"
+    // The type of API that will be used. Supported values are "srcomp", "livecomp",
+    // "srcomp_compensated", and "livecomp_compensated"
     "api_type": "srcomp",
     "devices": {
         // The IP addresses and ports of the devices that will be controlled

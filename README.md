@@ -56,7 +56,8 @@ Here is an example configuration file that sets a theoretical lighting controlle
 
 The configuration contains a number of sections.
 The `api_url` key is the URL of the API endpoint to access to get information about the current match.
-The `api_type` key is the type of API to use, currently only `srcomp` is supported.
+The `api_type` key is the type of API to use. Supported values are "srcomp", "livecomp",
+"srcomp_compensated", and "livecomp_compensated"
 
 The devices section contains a list of devices that can be controlled by the system.
 Each device is given a name and an address to send OSC messages to.
