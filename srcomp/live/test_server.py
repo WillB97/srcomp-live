@@ -205,6 +205,9 @@ def run(args: argparse.Namespace) -> None:
         httpd.serve_forever()
     except KeyboardInterrupt:
         LOGGER.info("Exiting")
+    except Exception as e:
+        LOGGER.error("Server error: %s", e)
+        raise
 
 
 def parse_args() -> argparse.Namespace:
