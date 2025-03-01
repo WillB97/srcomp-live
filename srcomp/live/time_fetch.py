@@ -156,7 +156,7 @@ def get_livecomp_game_time_full(api_url: str, latency_comp: bool) -> GAME_TIME_R
         start_time = data['nextMatch']['startsAt']
         current_time = data['nextMatch']['now']
         match_num = data['nextMatch']['matchNumber']
-    except (ValueError, IndexError, KeyError):
+    except (ValueError, IndexError, KeyError, TypeError):
         LOGGER.debug("Not in a match")
         return None, None
 
