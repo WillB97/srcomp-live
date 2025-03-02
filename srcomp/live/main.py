@@ -86,6 +86,10 @@ def run(config: RunnerConf) -> None:
             LOGGER.info("Performing action at %.1f: %s", action.time, action.description)
             config.osc_client.send_message(action.message, match_num)
 
+        if config.actions.index(action) == len(config.actions) - 1:
+            # All actions have been performed
+            match_verifier.in_match = False
+
 
 def test_match(config: RunnerConf, match_timings: dict[str, int]) -> None:
     """
