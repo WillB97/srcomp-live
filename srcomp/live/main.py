@@ -43,10 +43,16 @@ def run(config: RunnerConf) -> None:
     game_time_fn = available_game_time_fn[config.api_type]
     while True:
         try:
-            game_time, match_num = game_time_fn(config.api_url)
+            game_time, match_num = game_time_fn.get_game_time(config.api_url)
         except ValueError as e:
             LOGGER.warning(e)
-            game_time, match_num = None, None
+
+            if not game_time_fn.abort_on_api_fail:
+                # Don't process this just go to the next iteration
+                sleep(config.sleep_increment)
+                continue
+            else:
+                game_time, match_num = None, None
 
         if not match_verifier.validate_timing(game_time, match_num):
             run_abort(config.abort_actions, config.osc_client)
