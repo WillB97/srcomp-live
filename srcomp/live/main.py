@@ -121,10 +121,17 @@ def test_abort(config: RunnerConf) -> None:
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
+    log_format = "[%(asctime)s] %(name)s %(levelname)s: %(message)s"
     logging.basicConfig(
-        format="[%(asctime)s] %(name)s %(levelname)s: %(message)s",
+        format=log_format,
         level=(logging.DEBUG if args.debug else logging.INFO)
     )
+    if args.log_file:
+        file_handler = logging.FileHandler(args.log_file, mode='a')
+        file_handler.setFormatter(logging.Formatter(log_format))
+
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
 
     config = load_config(args.config)
 
@@ -177,6 +184,12 @@ def parse_args() -> argparse.Namespace:
         "--test-abort",
         action="store_true",
         help="Run all actions listed under the 'abort_actions' key of the config and exit"
+    )
+    parser.add_argument(
+        "--log-file",
+        type=str,
+        default=None,
+        help="Path to the log file."
     )
 
     return parser.parse_args()
