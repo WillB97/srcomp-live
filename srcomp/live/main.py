@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import logging
+import queue
+import threading
+import time
 from bisect import bisect_left
 from time import sleep
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 from .osc import OSCClient
 from .test_server import run_server
@@ -26,6 +29,7 @@ class RunnerConf(NamedTuple):
     api_type: str = "srcomp"
     sleep_increment: float = 2
     lock_in_time: float = 10
+    queue: Optional[queue.Queue] = None
 
 
 def run_abort(actions: list[Action], osc_client: OSCClient) -> None:
@@ -81,6 +85,8 @@ def run(config: RunnerConf) -> None:
             remaining_time,
             action.description
         )
+        if config.queue is not None:
+            config.queue.put_nowait(remaining_time + time.time())
         sleep(remaining_time)
         assert match_num is not None
 
@@ -118,6 +124,28 @@ def test_abort(config: RunnerConf) -> None:
     run_abort(config.abort_actions, config.osc_client)
 
 
+def countdown_thread(countdown_queue: queue.Queue) -> None:
+    """Run the countdown in a separate thread."""
+    while True:
+        end_time = countdown_queue.get()
+
+        display_countdown(end_time)
+        countdown_queue.task_done()
+
+
+def display_countdown(end_time: float, interval: float = 0.1) -> None:
+    """Display a countdown timer in the terminal."""
+    remaining = end_time - time.time()
+    if remaining < interval:
+        return
+
+    while (remaining := end_time - time.time()) > interval:
+        print(f"Running in {remaining:4.1f}s", end='\r')
+        sleep(interval)
+
+    print(f"Running {' ' * 10}")
+
+
 def main() -> None:
     """Main function for the srcomp-live script."""
     args = parse_args()
@@ -152,7 +180,15 @@ def main() -> None:
         actions,
         abort_actions,
         api_type=config['api_type'],
+        queue=queue.Queue(),
     )
+
+    thread = threading.Thread(
+        target=countdown_thread,
+        args=(runner_config.queue,),
+        daemon=True
+    )
+    thread.start()
 
     if args.test_abort:
         test_abort(runner_config)
